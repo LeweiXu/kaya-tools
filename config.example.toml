@@ -1,0 +1,107 @@
+# kaya-tools config. `kaya init` (or ./install.sh) copies this to config.toml, which is
+# gitignored. Everything here is yours to change; anything you leave out falls back to
+# the defaults in src/kaya_tools/config.py.
+
+# ---- How to reach Kaya ---------------------------------------------------------------
+[ssh]
+host = "kaya.hpc.uwa.edu.au"
+user = "your-uwa-username"
+# Your private key. It stays on your machine; kaya only passes this path to ssh -i.
+key = "~/.ssh/id_ed25519"
+port = 22
+# The host name round-robins over two login nodes. A short timeout means a dead node
+# costs a few seconds before ssh tries the other one, not a minute.
+connect_timeout = 5
+keepalive = 15
+# Share one ssh connection across commands (sockets live in .state/ssh/).
+multiplex = true
+persist = "60s"
+# Extra `ssh -o` options, e.g. ["StrictHostKeyChecking=accept-new"]
+options = []
+
+# ---- Your space on Kaya --------------------------------------------------------------
+[cluster]
+# Where your projects live. Relative project paths below hang off this.
+home = "/group/your-group/your-username"
+# Scratch dir for generated job scripts, relative to home.
+tmp_dir = ".kaya-tools"
+# Loaded before every remote run and job. `optional = true` ignores a failed load.
+modules = [
+    { name = "gcc/9.4.0", optional = true },
+    "Anaconda3/2024.06",
+    "cuda/12.6.3",
+]
+
+# ---- SLURM defaults for `kaya submit` (any flag can be overridden per command) --------
+[slurm]
+partition = "gpu"
+gres = "gpu:1"
+account = ""
+qos = ""
+nodes = 1
+ntasks = 1
+cpus_per_task = 4
+mem = "16G"
+time = "01:00:00"
+poll_seconds = 15
+
+# ---- How kaya behaves by default (most have a --flag / --no-flag to flip per command) --
+[behaviour]
+push_before_run = true    # rsync the project before run/submit
+push_delete = true        # push deletes remote files you deleted locally
+wait = true               # submit waits for the job to finish
+pull_after_job = true     # ...then pulls the project's pull folders
+pull_filter = ""          # default filter for pull ("" = everything), see [pull_filters]
+tail_lines = 120          # log lines shown when a job ends
+activate_env = true       # activate the project env for runs and jobs
+gpu_offline = true        # compute nodes have no internet, so gpu jobs export [offline_env_vars]
+forward_secrets = true    # login-node runs get the [secrets] variables
+confirm_cancel_all = true # `kaya cancel --all` asks first
+
+# Named include filters for pull. `kaya pull --filter text` brings back only these.
+[pull_filters]
+text = ["*.jsonl", "*.json", "*.csv", "*.md", "*.txt", "*.out", "*.err", "*.log"]
+
+# ---- Environment for remote runs and jobs ----------------------------------------------
+# {home} is [cluster] home, {root} the project's remote folder, {project} its name.
+# These keep caches inside the project instead of filling your tiny $HOME.
+[env_vars]
+PYTHONPATH = "{root}"
+HF_HOME = "{root}/.cache/huggingface"
+TORCH_HOME = "{root}/.cache/torch"
+PIP_CACHE_DIR = "{root}/.cache/pip"
+CONDA_PKGS_DIRS = "{root}/.cache/conda-pkgs"
+XDG_CACHE_HOME = "{root}/.cache/xdg"
+
+# Added on top when a run is offline (gpu jobs by default).
+[offline_env_vars]
+HF_HUB_OFFLINE = "1"
+HF_DATASETS_OFFLINE = "1"
+TRANSFORMERS_OFFLINE = "1"
+
+# Variables read from a local .env file and exported for login-node runs (never for
+# offline runs, and never written into job scripts). Relative paths are from this folder.
+[secrets]
+env_file = ".env"
+forward = ["HF_TOKEN"]
+
+# ---- Projects ---------------------------------------------------------------------------
+# A project is a local folder mirrored to Kaya. kaya picks the one that holds your current
+# directory, or use `kaya --project NAME ...`. `kaya init --project NAME` adds one.
+#
+# [projects.myproject]
+# local = "~/code/myproject"
+# remote = "myproject"          # absolute, or relative to [cluster] home
+# env = "envs/main"             # conda prefix (or venv) inside the remote folder; "" for none
+# env_kind = "conda"            # conda or venv
+# python = "python"
+# logs = "logs"                 # where job logs go, relative to the remote folder
+# pull = ["results", "logs"]    # what `kaya pull` brings back
+# excludes = [".git/", ".env", "__pycache__/", "*.pyc", ".venv/", "logs/", "results/", "data/"]
+# pre_submit = ""               # login-node check before submit; {program} and {args} are filled in
+#
+# Any of slurm, behaviour, pull_filters, env_vars, offline_env_vars, secrets (and modules) can be
+# overridden for one project:
+# [projects.myproject.slurm]
+# mem = "64G"
+# time = "12:00:00"

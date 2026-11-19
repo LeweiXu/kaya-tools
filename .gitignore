@@ -221,3 +221,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# kaya-tools: your own config and local state
+config.toml
+.state/
